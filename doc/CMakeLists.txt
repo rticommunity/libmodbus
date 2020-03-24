@@ -86,11 +86,11 @@ if(ASCIIDOC_EXECUTABLE)
         mark_as_advanced(ASCIIDOC_ARGS)
 
         separate_arguments(ASCIIDOC_ARG_LIST UNIX_COMMAND ${ASCIIDOC_ARGS})
-else(ASCIIDOC_EXECUTABLE)
+else()
     message(WARNING "Cannot find asciidoc executable, building HTML documentation is disabled."
                     "You can set ASCIIDOC_DIR and/or ASCIIDOC_EXECUTABLE to enable it.")
     set(BUILD_DOCS_HTML OFF CACHE BOOL "Build HTML documentation" FORCE)
-endif(ASCIIDOC_EXECUTABLE)
+endif()
 
 if(A2X_EXECUTABLE)
     set(A2X_ARGS
@@ -99,17 +99,17 @@ if(A2X_EXECUTABLE)
     mark_as_advanced(A2X_ARGS)
 
     separate_arguments(A2X_ARG_LIST UNIX_COMMAND ${A2X_ARGS})
-else(A2X_EXECUTABLE)
+else()
     message(WARNING "Cannot find asciidoc executable, building manpage documentation is disabled."
                     "You can set A2X_DIR and/or A2X_EXECUTABLE to enable it.")
     set(BUILD_DOCS_MAN OFF CACHE BOOL "Build manpage documentation" FORCE)
-endif(A2X_EXECUTABLE)
+endif()
 
 if((NOT BUILD_DOCS_HTML) AND (NOT BUILD_DOCS_MAN))
     message(WARNING "Neither asciidoc nor a2x executable has been found."
                     "Building documentation is disabled")
     set(BUILD_DOCS OFF CACHE BOOL "Build libmodbus docs" FORCE)
-endif((NOT BUILD_DOCS_HTML) AND (NOT BUILD_DOCS_MAN))
+endif()
 
 #### Build ####
 set(MAN3_OUTPUTS "")
@@ -123,7 +123,7 @@ foreach(input_file ${MAN3_SRCS})
         add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${output_file}"
                            COMMAND ${A2X_EXECUTABLE} ${A2X_ARG_LIST} "-D" "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS ${input_file})
-    endif(BUILD_DOCS_MAN)
+    endif()
 
     if(BUILD_DOCS_HTML)
         string(REGEX REPLACE ".txt" ".html" output_file ${input_file})
@@ -131,7 +131,7 @@ foreach(input_file ${MAN3_SRCS})
         add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${output_file}"
                            COMMAND ${ASCIIDOC_EXECUTABLE} ${ASCIIDOC_ARG_LIST} "-o" "${CMAKE_CURRENT_BINARY_DIR}/${output_file}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS ${input_file})
-    endif(BUILD_DOCS_HTML)
+    endif()
 endforeach(input_file ${MAN3_SRCS})
 
 foreach(input_file ${MAN7_SRCS})
@@ -141,7 +141,7 @@ foreach(input_file ${MAN7_SRCS})
         add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${output_file}"
                            COMMAND ${A2X_EXECUTABLE} ${A2X_ARG_LIST} "-D" "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}")
-    endif(BUILD_DOCS_MAN)
+    endif()
 
     if(BUILD_DOCS_HTML)
         string(REGEX REPLACE ".txt" ".html" output_file ${input_file})
@@ -149,7 +149,7 @@ foreach(input_file ${MAN7_SRCS})
         add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${output_file}"
                            COMMAND ${ASCIIDOC_EXECUTABLE} ${ASCIIDOC_ARG_LIST} "-o" "${CMAKE_CURRENT_BINARY_DIR}/${output_file}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS ${input_file})
-    endif(BUILD_DOCS_HTML)
+    endif()
 endforeach(input_file ${MAN3_SRCS})
 
 add_custom_target(docs)
@@ -162,7 +162,7 @@ if(BUILD_DOCS_HTML)
 
     install(FILES ${HTML_OUTPUTS}
             DESTINATION ${CMAKE_INSTALL_DOCDIR} OPTIONAL)
-endif(BUILD_DOCS_HTML)
+endif()
 
 if(BUILD_DOCS_MAN)
     add_custom_target(docs_man3
@@ -183,4 +183,4 @@ if(BUILD_DOCS_MAN)
 
     install(FILES ${MAN7_OUTPUTS}
             DESTINATION ${CMAKE_INSTALL_MANDIR}/man7 OPTIONAL)
-endif(BUILD_DOCS_MAN)
+endif()

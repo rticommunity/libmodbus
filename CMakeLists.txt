@@ -85,7 +85,7 @@ set_target_properties(modbus PROPERTIES
 option(BUILD_DOCS "Build libmodbus docs" OFF)
 if(BUILD_DOCS)
     add_subdirectory(doc)
-endif(BUILD_DOCS)
+endif()
 #### INSTALL ####
 
 install(TARGETS modbus EXPORT libmodbusConfig
