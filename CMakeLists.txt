@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(libmodbus VERSION 3.1.4)
+project(libmodbus VERSION 3.1.6)
 
 #### CONFIGURATION ####
 set(LIBMODBUS_VERSION ${PROJECT_VERSION})
@@ -47,6 +47,7 @@ check_symbol_exists(TIOCM_RTS sys/ioctl.h HAVE_TIOCM_RTS)
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 #### BUILD OPTIONS ####
+
 include(GNUInstallDirs)
 
 set(MODBUS_PUBLIC_HEADERS
@@ -62,7 +63,9 @@ add_library(modbus
     src/modbus-data.c
     src/modbus-rtu.c
     src/modbus-tcp.c
-    src/modbus.c)
+    src/modbus.c
+    src/modbus-reply.c
+    src/modbus-reply-mapping.c)
 
 target_include_directories(modbus PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(modbus INTERFACE
