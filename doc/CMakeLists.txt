@@ -132,7 +132,7 @@ foreach(input_file ${MAN3_SRCS})
                            COMMAND ${ASCIIDOC_EXECUTABLE} ${ASCIIDOC_ARG_LIST} "-o" "${CMAKE_CURRENT_BINARY_DIR}/${output_file}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS ${input_file})
     endif()
-endforeach(input_file ${MAN3_SRCS})
+endforeach()
 
 foreach(input_file ${MAN7_SRCS})
     if(BUILD_DOCS_MAN)
@@ -150,7 +150,7 @@ foreach(input_file ${MAN7_SRCS})
                            COMMAND ${ASCIIDOC_EXECUTABLE} ${ASCIIDOC_ARG_LIST} "-o" "${CMAKE_CURRENT_BINARY_DIR}/${output_file}" "${CMAKE_CURRENT_SOURCE_DIR}/${input_file}"
                            DEPENDS ${input_file})
     endif()
-endforeach(input_file ${MAN3_SRCS})
+endforeach()
 
 add_custom_target(docs)
 
