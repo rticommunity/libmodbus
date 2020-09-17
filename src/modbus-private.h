@@ -1,7 +1,7 @@
 /*
  * Copyright © 2010-2012 Stéphane Raimbault <stephane.raimbault@gmail.com>
  *
- * SPDX-License-Identifier: LGPL-2.1+
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #ifndef MODBUS_PRIVATE_H
@@ -98,6 +98,7 @@ struct _modbus {
     int error_recovery;
     struct timeval response_timeout;
     struct timeval byte_timeout;
+    struct timeval indication_timeout;
     const modbus_backend_t *backend;
     void *backend_data;
 };

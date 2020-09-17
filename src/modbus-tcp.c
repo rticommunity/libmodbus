@@ -1,8 +1,17 @@
 /*
  * Copyright © 2001-2013 Stéphane Raimbault <stephane.raimbault@gmail.com>
  *
- * SPDX-License-Identifier: LGPL-2.1+
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
+
+#if defined(_WIN32)
+# define OS_WIN32
+/* ws2_32.dll has getaddrinfo and freeaddrinfo on Windows XP and later.
+ * minwg32 headers check WINVER before allowing the use of these */
+# ifndef WINVER
+#   define WINVER 0x0501
+# endif
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,12 +24,6 @@
 #include <sys/types.h>
 
 #if defined(_WIN32)
-# define OS_WIN32
-/* ws2_32.dll has getaddrinfo and freeaddrinfo on Windows XP and later.
- * minwg32 headers check WINVER before allowing the use of these */
-# ifndef WINVER
-# define WINVER 0x0501
-# endif
 /* Already set in modbus-tcp.h but it seems order matters in VS2005 */
 # include <winsock2.h>
 # include <ws2tcpip.h>
@@ -478,6 +481,7 @@ int modbus_tcp_listen(modbus_t *ctx, int nb_connection)
 {
     int new_s;
     int enable;
+    int flags;
     struct sockaddr_in addr;
     modbus_tcp_t *ctx_tcp;
 
@@ -494,7 +498,13 @@ int modbus_tcp_listen(modbus_t *ctx, int nb_connection)
     }
 #endif
 
-    new_s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    flags = SOCK_STREAM;
+
+#ifdef SOCK_CLOEXEC
+    flags |= SOCK_CLOEXEC;
+#endif
+
+    new_s = socket(PF_INET, flags, IPPROTO_TCP);
     if (new_s == -1) {
         return -1;
     }
@@ -590,10 +600,14 @@ int modbus_tcp_pi_listen(modbus_t *ctx, int nb_connection)
 
     new_s = -1;
     for (ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next) {
+        int flags = ai_ptr->ai_socktype;
         int s;
 
-        s = socket(ai_ptr->ai_family, ai_ptr->ai_socktype,
-                   ai_ptr->ai_protocol);
+#ifdef SOCK_CLOEXEC
+        flags |= SOCK_CLOEXEC;
+#endif
+
+        s = socket(ai_ptr->ai_family, flags, ai_ptr->ai_protocol);
         if (s < 0) {
             if (ctx->debug) {
                 perror("socket");
@@ -661,8 +675,6 @@ int modbus_tcp_accept(modbus_t *ctx, int *s)
 #endif
 
     if (ctx->s == -1) {
-        close(*s);
-        *s = -1;
         return -1;
     }
 
@@ -691,9 +703,9 @@ int modbus_tcp_pi_accept(modbus_t *ctx, int *s)
 #else
     ctx->s = accept(*s, (struct sockaddr *)&addr, &addrlen);
 #endif
+
     if (ctx->s == -1) {
-        close(*s);
-        *s = -1;
+        return -1;
     }
 
     if (ctx->debug) {
@@ -792,12 +804,15 @@ modbus_t* modbus_new_tcp(const char *ip, int port)
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) < 0) {
         /* The debug flag can't be set here... */
-        fprintf(stderr, "Coud not install SIGPIPE handler.\n");
+        fprintf(stderr, "Could not install SIGPIPE handler.\n");
         return NULL;
     }
 #endif
 
     ctx = (modbus_t *)malloc(sizeof(modbus_t));
+    if (ctx == NULL) {
+        return NULL;
+    }
     _modbus_init_common(ctx);
 
     /* Could be changed after to reach a remote serial Modbus device */
@@ -806,6 +821,11 @@ modbus_t* modbus_new_tcp(const char *ip, int port)
     ctx->backend = &_modbus_tcp_backend;
 
     ctx->backend_data = (modbus_tcp_t *)malloc(sizeof(modbus_tcp_t));
+    if (ctx->backend_data == NULL) {
+        modbus_free(ctx);
+        errno = ENOMEM;
+        return NULL;
+    }
     ctx_tcp = (modbus_tcp_t *)ctx->backend_data;
 
     if (ip != NULL) {
@@ -842,6 +862,9 @@ modbus_t* modbus_new_tcp_pi(const char *node, const char *service)
     size_t ret_size;
 
     ctx = (modbus_t *)malloc(sizeof(modbus_t));
+    if (ctx == NULL) {
+        return NULL;
+    }
     _modbus_init_common(ctx);
 
     /* Could be changed after to reach a remote serial Modbus device */
@@ -850,6 +873,11 @@ modbus_t* modbus_new_tcp_pi(const char *node, const char *service)
     ctx->backend = &_modbus_tcp_pi_backend;
 
     ctx->backend_data = (modbus_tcp_pi_t *)malloc(sizeof(modbus_tcp_pi_t));
+    if (ctx->backend_data == NULL) {
+        modbus_free(ctx);
+        errno = ENOMEM;
+        return NULL;
+    }
     ctx_tcp_pi = (modbus_tcp_pi_t *)ctx->backend_data;
 
     if (node == NULL) {

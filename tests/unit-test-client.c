@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
     uint32_t old_byte_to_usec;
     int use_backend;
     int success = FALSE;
+    int old_slave;
 
     if (argc > 1) {
         if (strcmp(argv[1], "tcp") == 0) {
@@ -445,6 +446,8 @@ int main(int argc, char *argv[])
     ASSERT_TRUE(rc == -1 && errno == EMBMDATA, "");
 
     /** SLAVE REPLY **/
+    old_slave = modbus_get_slave(ctx);
+
     printf("\nTEST SLAVE REPLY:\n");
     modbus_set_slave(ctx, INVALID_SERVER_ID);
     rc = modbus_read_registers(ctx, UT_REGISTERS_ADDRESS,
@@ -485,22 +488,30 @@ int main(int argc, char *argv[])
         printf("1-C/3 No response from slave %d with invalid request: ",
                INVALID_SERVER_ID);
         ASSERT_TRUE(rc == -1 && errno == ETIMEDOUT, "");
+
+        rc = modbus_set_slave(ctx, MODBUS_BROADCAST_ADDRESS);
+        ASSERT_TRUE(rc != -1, "Invalid broadcast address");
+
+        rc = modbus_read_registers(ctx, UT_REGISTERS_ADDRESS,
+                                   UT_REGISTERS_NB, tab_rp_registers);
+        printf("2/3 No reply after a broadcast query: ");
+        ASSERT_TRUE(rc == -1 && errno == ETIMEDOUT, "");
     } else {
         /* Response in TCP mode */
         printf("1/3 Response from slave %d: ", INVALID_SERVER_ID);
         ASSERT_TRUE(rc == UT_REGISTERS_NB, "");
+
+        rc = modbus_set_slave(ctx, MODBUS_BROADCAST_ADDRESS);
+        ASSERT_TRUE(rc != -1, "Invalid broacast address");
+
+        rc = modbus_read_registers(ctx, UT_REGISTERS_ADDRESS,
+                                   UT_REGISTERS_NB, tab_rp_registers);
+        printf("2/3 Reply after a query with unit id == 0: ");
+        ASSERT_TRUE(rc == UT_REGISTERS_NB, "");
     }
 
-    rc = modbus_set_slave(ctx, MODBUS_BROADCAST_ADDRESS);
-    ASSERT_TRUE(rc != -1, "Invalid broacast address");
-
-    rc = modbus_read_registers(ctx, UT_REGISTERS_ADDRESS,
-                               UT_REGISTERS_NB, tab_rp_registers);
-    printf("2/3 No reply after a broadcast query: ");
-    ASSERT_TRUE(rc == -1 && errno == ETIMEDOUT, "");
-
     /* Restore slave */
-    modbus_set_slave(ctx, use_backend == RTU ? SERVER_ID : MODBUS_TCP_SLAVE);
+    modbus_set_slave(ctx, old_slave);
 
     printf("3/3 Response with an invalid TID or slave: ");
     rc = modbus_read_registers(ctx, UT_REGISTERS_ADDRESS_INVALID_TID_OR_SLAVE,
@@ -791,7 +802,6 @@ int test_server(modbus_t *ctx, int use_backend)
             goto close;
     }
 
-    /* Modbus write and read multiple registers */
     rc = send_crafted_request(ctx, MODBUS_FC_WRITE_AND_READ_REGISTERS,
                               rw_raw_req, RW_RAW_REQ_LEN,
                               MODBUS_MAX_WR_READ_REGISTERS + 1, 0,
@@ -799,8 +809,6 @@ int test_server(modbus_t *ctx, int use_backend)
     if (rc == -1)
         goto close;
 
-    /* Modbus write multiple registers with large number of values but a set a
-       small number of bytes in requests (not nb * 2 as usual). */
     rc = send_crafted_request(ctx, MODBUS_FC_WRITE_MULTIPLE_REGISTERS,
                               write_raw_req, WRITE_RAW_REQ_LEN,
                               MODBUS_MAX_WRITE_REGISTERS + 1, 6,
@@ -811,6 +819,22 @@ int test_server(modbus_t *ctx, int use_backend)
     rc = send_crafted_request(ctx, MODBUS_FC_WRITE_MULTIPLE_COILS,
                               write_raw_req, WRITE_RAW_REQ_LEN,
                               MODBUS_MAX_WRITE_BITS + 1, 6,
+                              backend_length, backend_offset);
+    if (rc == -1)
+        goto close;
+
+    /* Modbus write multiple registers with large number of values but a set a
+       small number of bytes in requests (not nb * 2 as usual). */
+    rc = send_crafted_request(ctx, MODBUS_FC_WRITE_MULTIPLE_REGISTERS,
+                              write_raw_req, WRITE_RAW_REQ_LEN,
+                              MODBUS_MAX_WRITE_REGISTERS, 6,
+                              backend_length, backend_offset);
+    if (rc == -1)
+        goto close;
+
+    rc = send_crafted_request(ctx, MODBUS_FC_WRITE_MULTIPLE_COILS,
+                              write_raw_req, WRITE_RAW_REQ_LEN,
+                              MODBUS_MAX_WRITE_BITS, 6,
                               backend_length, backend_offset);
     if (rc == -1)
         goto close;

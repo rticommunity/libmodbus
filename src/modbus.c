@@ -1,7 +1,7 @@
 /*
  * Copyright © 2001-2011 Stéphane Raimbault <stephane.raimbault@gmail.com>
  *
- * SPDX-License-Identifier: LGPL-2.1+
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * This library implements the Modbus protocol.
  * http://libmodbus.org/
@@ -207,7 +207,7 @@ static int send_msg(modbus_t *ctx, uint8_t *msg, int msg_length)
     return rc;
 }
 
-int modbus_send_raw_request(modbus_t *ctx, uint8_t *raw_req, int raw_req_length)
+int modbus_send_raw_request(modbus_t *ctx, const uint8_t *raw_req, int raw_req_length)
 {
     sft_t sft;
     uint8_t req[MAX_MESSAGE_LENGTH];
@@ -349,7 +349,7 @@ int _modbus_receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
 
     if (ctx->debug) {
         if (msg_type == MSG_INDICATION) {
-            printf("Waiting for a indication...\n");
+            printf("Waiting for an indication...\n");
         } else {
             printf("Waiting for a confirmation...\n");
         }
@@ -368,7 +368,15 @@ int _modbus_receive_msg(modbus_t *ctx, uint8_t *msg, msg_type_t msg_type)
     if (msg_type == MSG_INDICATION) {
         /* Wait for a message, we don't know when the message will be
          * received */
-        p_tv = NULL;
+        if (ctx->indication_timeout.tv_sec == 0 && ctx->indication_timeout.tv_usec == 0) {
+            /* By default, the indication timeout isn't set */
+            p_tv = NULL;
+        } else {
+            /* Wait for an indication (name of a received request by a server, see schema) */
+            tv.tv_sec = ctx->indication_timeout.tv_sec;
+            tv.tv_usec = ctx->indication_timeout.tv_usec;
+            p_tv = &tv;
+        }
     } else {
         tv.tv_sec = ctx->response_timeout.tv_sec;
         tv.tv_usec = ctx->response_timeout.tv_usec;
@@ -831,9 +839,10 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
         break;
     case MODBUS_FC_WRITE_MULTIPLE_COILS: {
         int nb = (req[offset + 3] << 8) + req[offset + 4];
+        int nb_bits = req[offset + 5];
         int mapping_address = address - mb_mapping->start_bits;
 
-        if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb) {
+        if (nb < 1 || MODBUS_MAX_WRITE_BITS < nb || nb_bits * 8 < nb) {
             /* May be the indication has been truncated on reading because of
              * invalid address (eg. nb is 0 but the request contains values to
              * write) so it's necessary to flush. */
@@ -862,9 +871,10 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
         break;
     case MODBUS_FC_WRITE_MULTIPLE_REGISTERS: {
         int nb = (req[offset + 3] << 8) + req[offset + 4];
+        int nb_bytes = req[offset + 5];
         int mapping_address = address - mb_mapping->start_registers;
 
-        if (nb < 1 || MODBUS_MAX_WRITE_REGISTERS < nb) {
+        if (nb < 1 || MODBUS_MAX_WRITE_REGISTERS < nb || nb_bytes != nb * 2) {
             rsp_length = response_exception(
                 ctx, &sft, MODBUS_EXCEPTION_ILLEGAL_DATA_VALUE, rsp, TRUE,
                 "Illegal number of values %d in write_registers (max %d)\n",
@@ -988,7 +998,8 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
     }
 
     /* Suppress any responses when the request was a broadcast */
-    return (slave == MODBUS_BROADCAST_ADDRESS) ? 0 : send_msg(ctx, rsp, rsp_length);
+    return (ctx->backend->backend_type == _MODBUS_BACKEND_TYPE_RTU &&
+            slave == MODBUS_BROADCAST_ADDRESS) ? 0 : send_msg(ctx, rsp, rsp_length);
 }
 
 int modbus_reply_exception(modbus_t *ctx, const uint8_t *req,
@@ -1012,7 +1023,7 @@ int modbus_reply_exception(modbus_t *ctx, const uint8_t *req,
     function = req[offset];
 
     sft.slave = slave;
-    sft.function = function + 0x80;;
+    sft.function = function + 0x80;
     sft.t_id = ctx->backend->prepare_response_tid(req, &dummy_length);
     rsp_length = ctx->backend->build_response_basis(&sft, rsp);
 
@@ -1227,7 +1238,7 @@ int modbus_read_input_registers(modbus_t *ctx, int addr, int nb,
 
 /* Write a value to the specified register of the remote device.
    Used by write_bit and write_register */
-static int write_single(modbus_t *ctx, int function, int addr, int value)
+static int write_single(modbus_t *ctx, int function, int addr, const uint16_t value)
 {
     int rc;
     int req_length;
@@ -1238,7 +1249,7 @@ static int write_single(modbus_t *ctx, int function, int addr, int value)
         return -1;
     }
 
-    req_length = ctx->backend->build_request_basis(ctx, function, addr, value, req);
+    req_length = ctx->backend->build_request_basis(ctx, function, addr, (int) value, req);
 
     rc = send_msg(ctx, req, req_length);
     if (rc > 0) {
@@ -1268,7 +1279,7 @@ int modbus_write_bit(modbus_t *ctx, int addr, int status)
 }
 
 /* Writes a value in one register of the remote device */
-int modbus_write_register(modbus_t *ctx, int addr, int value)
+int modbus_write_register(modbus_t *ctx, int addr, const uint16_t value)
 {
     if (ctx == NULL) {
         errno = EINVAL;
@@ -1564,6 +1575,9 @@ void _modbus_init_common(modbus_t *ctx)
 
     ctx->byte_timeout.tv_sec = 0;
     ctx->byte_timeout.tv_usec = _BYTE_TIMEOUT;
+
+    ctx->indication_timeout.tv_sec = 0;
+    ctx->indication_timeout.tv_usec = 0;
 }
 
 /* Define the slave number */
@@ -1575,6 +1589,16 @@ int modbus_set_slave(modbus_t *ctx, int slave)
     }
 
     return ctx->backend->set_slave(ctx, slave);
+}
+
+int modbus_get_slave(modbus_t *ctx)
+{
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    return ctx->slave;
 }
 
 int modbus_set_error_recovery(modbus_t *ctx,
@@ -1663,6 +1687,32 @@ int modbus_set_byte_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec)
     return 0;
 }
 
+/* Get the timeout interval used by the server to wait for an indication from a client */
+int modbus_get_indication_timeout(modbus_t *ctx, uint32_t *to_sec, uint32_t *to_usec)
+{
+    if (ctx == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    *to_sec = ctx->indication_timeout.tv_sec;
+    *to_usec = ctx->indication_timeout.tv_usec;
+    return 0;
+}
+
+int modbus_set_indication_timeout(modbus_t *ctx, uint32_t to_sec, uint32_t to_usec)
+{
+    /* Indication timeout can be disabled when both values are zero */
+    if (ctx == NULL || to_usec > 999999) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    ctx->indication_timeout.tv_sec = to_sec;
+    ctx->indication_timeout.tv_usec = to_usec;
+    return 0;
+}
+
 int modbus_get_header_length(modbus_t *ctx)
 {
     if (ctx == NULL) {
@@ -1713,7 +1763,7 @@ int modbus_set_debug(modbus_t *ctx, int flag)
 /* Allocates 4 arrays to store bits, input bits, registers and inputs
    registers. The pointers are stored in modbus_mapping structure.
 
-   The modbus_mapping_new_ranges() function shall return the new allocated
+   The modbus_mapping_new_start_address() function shall return the new allocated
    structure if successful. Otherwise it shall return NULL and set errno to
    ENOMEM. */
 modbus_mapping_t* modbus_mapping_new_start_address(
