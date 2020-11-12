@@ -6,7 +6,7 @@ set(LIBMODBUS_VERSION ${PROJECT_VERSION})
 set(LIBMODBUS_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(LIBMODBUS_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(LIBMODBUS_VERSION_MICRO ${PROJECT_VERSION_PATCH})
-configure_file(src/modbus-version.h.in ${CMAKE_CURRENT_BINARY_DIR}/modbus-version.h)
+configure_file(src/modbus-version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/src/modbus-version.h)
 
 include(CheckIncludeFile)
 check_include_file(arpa/inet.h HAVE_ARPA_INET_H)
@@ -54,7 +54,7 @@ set(MODBUS_PUBLIC_HEADERS
     src/modbus-rtu.h
     src/modbus-tcp.h
     src/modbus.h
-    ${CMAKE_CURRENT_BINARY_DIR}/modbus-version.h
+    src/modbus-version.h
 )
 
 option(BUILD_SHARED_LIBS "Build libmodbus as a shared library" ON)
@@ -64,8 +64,7 @@ add_library(modbus
     src/modbus-rtu.c
     src/modbus-tcp.c
     src/modbus.c
-    src/modbus-reply.c
-    src/modbus-reply-mapping.c)
+)
 
 target_include_directories(modbus PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(modbus INTERFACE
