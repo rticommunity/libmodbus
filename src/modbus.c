@@ -911,7 +911,7 @@ int modbus_reply(modbus_t *ctx, const uint8_t *req,
         /* Run indicator status to ON */
         rsp[rsp_length++] = 0xFF;
         /* LMB + length of LIBMODBUS_VERSION_STRING */
-        str_len = 3 + strlen(LIBMODBUS_VERSION_STRING);
+        str_len = (int) (3 + strlen(LIBMODBUS_VERSION_STRING));
         memcpy(rsp + rsp_length, "LMB" LIBMODBUS_VERSION_STRING, str_len);
         rsp_length += str_len;
         rsp[byte_count_pos] = rsp_length - byte_count_pos - 1;

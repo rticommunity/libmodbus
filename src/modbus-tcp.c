@@ -53,6 +53,8 @@
 #define MSG_DONTWAIT MSG_NONBLOCK
 #endif
 
+#include "modbus.h"
+
 #include "modbus-private.h"
 
 #include "modbus-tcp.h"
@@ -322,7 +324,7 @@ static int _modbus_tcp_connect(modbus_t *ctx)
     flags |= SOCK_NONBLOCK;
 #endif
 
-    ctx->s = socket(PF_INET, flags, 0);
+    ctx->s = (int)socket(PF_INET, flags, 0);
     if (ctx->s == -1) {
         return -1;
     }
@@ -399,7 +401,7 @@ static int _modbus_tcp_pi_connect(modbus_t *ctx)
         flags |= SOCK_NONBLOCK;
 #endif
 
-        s = socket(ai_ptr->ai_family, flags, ai_ptr->ai_protocol);
+        s = (int)socket(ai_ptr->ai_family, flags, ai_ptr->ai_protocol);
         if (s < 0)
             continue;
 
@@ -410,7 +412,11 @@ static int _modbus_tcp_pi_connect(modbus_t *ctx)
             printf("Connecting to [%s]:%s\n", ctx_tcp_pi->node, ctx_tcp_pi->service);
         }
 
-        rc = _connect(s, ai_ptr->ai_addr, ai_ptr->ai_addrlen, &ctx->response_timeout);
+        rc = _connect(
+                s,
+                ai_ptr->ai_addr,
+                (socklen_t) ai_ptr->ai_addrlen,
+                &ctx->response_timeout);
         if (rc == -1) {
             close(s);
             continue;
@@ -504,7 +510,7 @@ int modbus_tcp_listen(modbus_t *ctx, int nb_connection)
     flags |= SOCK_CLOEXEC;
 #endif
 
-    new_s = socket(PF_INET, flags, IPPROTO_TCP);
+    new_s = (int)socket(PF_INET, flags, IPPROTO_TCP);
     if (new_s == -1) {
         return -1;
     }
@@ -607,7 +613,7 @@ int modbus_tcp_pi_listen(modbus_t *ctx, int nb_connection)
         flags |= SOCK_CLOEXEC;
 #endif
 
-        s = socket(ai_ptr->ai_family, flags, ai_ptr->ai_protocol);
+        s = (int)socket(ai_ptr->ai_family, flags, ai_ptr->ai_protocol);
         if (s < 0) {
             if (ctx->debug) {
                 perror("socket");
@@ -626,7 +632,7 @@ int modbus_tcp_pi_listen(modbus_t *ctx, int nb_connection)
             }
         }
 
-        rc = bind(s, ai_ptr->ai_addr, ai_ptr->ai_addrlen);
+        rc = bind(s, ai_ptr->ai_addr, (int) ai_ptr->ai_addrlen);
         if (rc != 0) {
             close(s);
             if (ctx->debug) {
@@ -671,7 +677,7 @@ int modbus_tcp_accept(modbus_t *ctx, int *s)
     /* Inherit socket flags and use accept4 call */
     ctx->s = accept4(*s, (struct sockaddr *)&addr, &addrlen, SOCK_CLOEXEC);
 #else
-    ctx->s = accept(*s, (struct sockaddr *)&addr, &addrlen);
+    ctx->s = (int)accept(*s, (struct sockaddr *)&addr, &addrlen);
 #endif
 
     if (ctx->s == -1) {
@@ -701,7 +707,7 @@ int modbus_tcp_pi_accept(modbus_t *ctx, int *s)
     /* Inherit socket flags and use accept4 call */
     ctx->s = accept4(*s, (struct sockaddr *)&addr, &addrlen, SOCK_CLOEXEC);
 #else
-    ctx->s = accept(*s, (struct sockaddr *)&addr, &addrlen);
+    ctx->s = (int)accept(*s, (struct sockaddr *)&addr, &addrlen);
 #endif
 
     if (ctx->s == -1) {
